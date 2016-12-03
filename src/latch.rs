@@ -16,6 +16,15 @@ use std::sync::{Mutex, Condvar};
 ///
 /// It'd probably be better to refactor the API into two paired types,
 /// but that's a bit of work, and this is not a public API.
+///
+/// ## Memory ordering
+///
+/// When a call to `probe()` returns true, the latch should guarantee
+/// that memory effects from before all `set()` operations are
+/// visible.  In other words, latches in general guarantee that
+/// `set()` operations *happen before* a `probe()` that returns
+/// true. If `probe()` returns false, there are no particular memory
+/// orderings guaranteed.
 pub trait Latch {
     /// Test if the latch is set.
     fn probe(&self) -> bool;
