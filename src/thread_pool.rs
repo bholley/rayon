@@ -236,6 +236,11 @@ impl WorkerThread {
         });
     }
 
+    /// The registry associated with this worker
+    pub fn registry(&self) -> &Arc<Registry> {
+        &self.registry
+    }
+
     /// Our index amongst the worker threads (ranges from `0..self.num_threads()`).
     #[inline]
     pub fn index(&self) -> usize {
