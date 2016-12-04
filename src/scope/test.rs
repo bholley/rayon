@@ -193,3 +193,49 @@ fn the_final_countdown<'scope>(s: &Scope<'scope>,
         s.spawn(move |s| the_final_countdown(s, bottom_of_stack, max, n - 1));
     }
 }
+
+#[test]
+#[should_panic]
+fn panic_propagate() {
+    scope(|_| {
+        panic!("Hello, world!");
+    });
+}
+
+#[test]
+#[should_panic]
+fn panic_propagate_up_from_spawn() {
+    scope(|s| {
+        s.spawn(|_| panic!("Hello, world!"));
+    });
+}
+
+#[test]
+#[should_panic]
+fn panic_propagate_up_from_first_spawns() {
+    scope(|s| {
+        s.spawn(|_| panic!("Hello, world!"));
+        s.spawn(|_| ());
+    });
+}
+
+#[test]
+#[should_panic]
+fn panic_propagate_up_from_second_spawns() {
+    scope(|s| {
+        s.spawn(|_| ());
+        s.spawn(|_| panic!("Hello, world!"));
+    });
+}
+
+#[test]
+#[should_panic]
+fn panic_propagate_up_from_multiple_spawns() {
+    scope(|s| {
+        s.spawn(|_| ());
+        s.spawn(|_| panic!("Hello, world!"));
+        s.spawn(|_| ());
+        s.spawn(|_| panic!("Hello, world!"));
+        s.spawn(|_| ());
+    });
+}

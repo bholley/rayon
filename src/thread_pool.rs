@@ -164,6 +164,9 @@ impl Registry {
     /// extant work is completed.
     pub fn terminate(&self) {
         self.terminate_latch.set();
+
+        // remember to tickle when terminating; threads may be asleep
+        self.sleep.tickle(usize::MAX);
     }
 }
 
@@ -408,11 +411,8 @@ unsafe fn in_worker_cold<OP, R>(op: OP) -> R
 {
     // never run from a worker thread; just shifts over into worker threads
     debug_assert!(WorkerThread::current().is_null());
-    let mut result = None;
-    {
-        let job = StackJob::new(|| result = Some(in_worker(op)), LockLatch::new());
-        global_registry().inject(&[job.as_job_ref()]);
-        job.latch.wait();
-    }
-    result.unwrap()
+    let job = StackJob::new(|| in_worker(op), LockLatch::new());
+    global_registry().inject(&[job.as_job_ref()]);
+    job.latch.wait();
+    job.into_result()
 }
