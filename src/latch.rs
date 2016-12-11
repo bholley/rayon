@@ -50,12 +50,12 @@ impl SpinLatch {
 impl Latch for SpinLatch {
     #[inline]
     fn probe(&self) -> bool {
-        self.b.load(Ordering::Acquire)
+        self.b.load(Ordering::SeqCst)
     }
 
     #[inline]
     fn set(&self) {
-        self.b.store(true, Ordering::Release);
+        self.b.store(true, Ordering::SeqCst);
     }
 }
 
@@ -126,12 +126,12 @@ impl Latch for CountLatch {
     #[inline]
     fn probe(&self) -> bool {
         // Need to acquire any memory reads before latch was set:
-        self.counter.load(Ordering::Acquire) == 0
+        self.counter.load(Ordering::SeqCst) == 0
     }
 
     /// Set the latch to true, releasing all threads who are waiting.
     #[inline]
     fn set(&self) {
-        self.counter.fetch_sub(1, Ordering::Release);
+        self.counter.fetch_sub(1, Ordering::SeqCst);
     }
 }

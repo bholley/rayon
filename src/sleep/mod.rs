@@ -91,14 +91,18 @@ impl Sleep {
     }
 
     pub fn tickle(&self, worker_index: usize) {
-        // As described in README.md, this swap must be SeqCst so as to ensure that:
+        // As described in README.md, this load must be SeqCst so as to ensure that:
         // - if anyone is sleepy or asleep, we *definitely* see that now (and not eventually);
         // - if anyone after us becomes sleepy or asleep, they see memory events that
         //   precede the call to `tickle()`, even though we did not do a write.
-        //
-        // It also must be a *swap* (i.e., a write action) to ensure that we
-        // *synchronize-with* the later read from another thread.
-        //
+        let old_state = self.state.load(Ordering::SeqCst);
+        if old_state != AWAKE {
+            self.tickle_cold(worker_index);
+        }
+    }
+
+    #[cold]
+    fn tickle_cold(&self, worker_index: usize) {
         // The `Release` ordering here suffices. The reasoning is that
         // the atomic's own natural ordering ensure that any attempt
         // to become sleepy/asleep either will come before/after this
@@ -109,22 +113,15 @@ impl Sleep {
         // becoming sleepy, the other writes don't matter. If they
         // were were going to sleep, we will acquire lock and hence
         // acquire their reads.
-
-        let old_state = self.state.swap(AWAKE, Ordering::SeqCst);
-        if self.anyone_sleeping(old_state) {
-            self.tickle_cold(worker_index, old_state);
-        }
-    }
-
-    #[cold]
-    fn tickle_cold(&self, worker_index: usize, old_state: usize) {
+        let old_state = self.state.swap(AWAKE, Ordering::Release);
         log!(Tickle {
             worker: worker_index,
             old_state: old_state,
         });
-
-        let _data = self.data.lock().unwrap();
-        self.tickle.notify_all();
+        if self.anyone_sleeping(old_state) {
+            let _data = self.data.lock().unwrap();
+            self.tickle.notify_all();
+        }
     }
 
     fn get_sleepy(&self, worker_index: usize) -> bool {
