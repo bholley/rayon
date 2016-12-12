@@ -95,14 +95,14 @@ impl Sleep {
         // - if anyone is sleepy or asleep, we *definitely* see that now (and not eventually);
         // - if anyone after us becomes sleepy or asleep, they see memory events that
         //   precede the call to `tickle()`, even though we did not do a write.
-        let old_state = self.state.load(Ordering::SeqCst);
+        let old_state = self.state.swap(AWAKE, Ordering::Release);
         if old_state != AWAKE {
-            self.tickle_cold(worker_index);
+            self.tickle_cold(worker_index, old_state);
         }
     }
 
     #[cold]
-    fn tickle_cold(&self, worker_index: usize) {
+    fn tickle_cold(&self, worker_index: usize, old_state: usize) {
         // The `Release` ordering here suffices. The reasoning is that
         // the atomic's own natural ordering ensure that any attempt
         // to become sleepy/asleep either will come before/after this
@@ -113,7 +113,6 @@ impl Sleep {
         // becoming sleepy, the other writes don't matter. If they
         // were were going to sleep, we will acquire lock and hence
         // acquire their reads.
-        let old_state = self.state.swap(AWAKE, Ordering::Release);
         log!(Tickle {
             worker: worker_index,
             old_state: old_state,
@@ -163,7 +162,7 @@ impl Sleep {
                 // The failure ordering doesn't matter since we are
                 // about to spin around and do a fresh load.
                 if self.state
-                    .compare_exchange(state, new_state, Ordering::SeqCst, Ordering::Relaxed)
+                    .compare_exchange(state, new_state, Ordering::Release, Ordering::Relaxed)
                     .is_ok() {
                     log!(GotSleepy {
                         worker: worker_index,
@@ -177,7 +176,7 @@ impl Sleep {
     }
 
     fn still_sleepy(&self, worker_index: usize) -> bool {
-        let state = self.state.load(Ordering::SeqCst);
+        let state = self.state.load(Ordering::Acquire);
         self.worker_is_sleepy(state, worker_index)
     }
 
@@ -244,7 +243,7 @@ impl Sleep {
                 // The failure ordering doesn't matter since we are
                 // about to spin around and do a fresh load.
                 if self.state
-                    .compare_exchange(state, SLEEPING, Ordering::SeqCst, Ordering::Relaxed)
+                    .compare_exchange(state, SLEEPING, Ordering::Release, Ordering::Relaxed)
                     .is_ok() {
                     // Don't do this in a loop. If we do it in a loop, we need
                     // some way to distinguish the ABA scenario where the pool
